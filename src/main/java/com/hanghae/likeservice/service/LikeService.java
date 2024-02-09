@@ -3,39 +3,36 @@ package com.hanghae.likeservice.service;
 import com.hanghae.likeservice.domain.constant.LikeType;
 import com.hanghae.likeservice.domain.entity.Likes;
 import com.hanghae.likeservice.domain.repository.LikeRepository;
+import com.hanghae.likeservice.external.client.FeedServiceClient;
+import com.hanghae.likeservice.external.client.UserServiceClient;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
-import java.net.URI;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class LikeService {
 
-    private final RestTemplate restTemplate;
     private final LikeRepository likeRepository;
+    private final UserServiceClient userServiceClient;
+    private final FeedServiceClient feedServiceClient;
 
     @Transactional
     public void toggleLike(LikeType likeType, Long targetId, HttpHeaders headers) {
-        Optional<Likes> optionalLike = likeRepository.findByUserEmailAndLikeTypeAndTargetId(getUserAccountEmail(headers).getBody(), likeType, targetId);
+        Optional<Likes> optionalLike = likeRepository.findByUserEmailAndLikeTypeAndTargetId(userServiceClient.getMyEmail(headers), likeType, targetId);
 
         if (likeType == LikeType.ARTICLE) {
-            if (Boolean.TRUE.equals(hasTarget(targetId, likeType, headers).getBody())) {
-                likeToggle(getUserAccountEmail(headers).getBody(), likeType, optionalLike, targetId);
+            if (Boolean.TRUE.equals(feedServiceClient.hasTarget(likeType, targetId))) {
+                likeToggle(userServiceClient.getMyEmail(headers), likeType, optionalLike, targetId);
             }
         }
 
         if (likeType == LikeType.COMMENT) {
-            if (Boolean.TRUE.equals(hasTarget(targetId, likeType, headers).getBody())) {
-                likeToggle(getUserAccountEmail(headers).getBody(), likeType, optionalLike, targetId);
+            if (Boolean.TRUE.equals(feedServiceClient.hasTarget(likeType, targetId))) {
+                likeToggle(userServiceClient.getMyEmail(headers), likeType, optionalLike, targetId);
             }
         }
     }
@@ -51,25 +48,5 @@ public class LikeService {
             Likes like = Likes.of(currentUserEmail, likeType, targetId);
             likeRepository.save(like);
         }
-    }
-
-    private ResponseEntity<String> getUserAccountEmail(HttpHeaders headers) {
-        String userAccountUrl = "http://127.0.0.1:8000/user-service/users/email";
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-
-        return restTemplate.exchange(userAccountUrl, HttpMethod.GET, entity,
-                String.class);
-    }
-
-    private ResponseEntity<Boolean> hasTarget(Long targetId, LikeType likeType, HttpHeaders headers) {
-        String feedUrl = "http://127.0.0.1:8000/feed-service/{likeType}/{targetId}";
-
-        URI url = UriComponentsBuilder.fromUriString(feedUrl)
-                .buildAndExpand(likeType, targetId)
-                .toUri();
-
-        HttpEntity<Object> entity = new HttpEntity<>(headers);
-
-        return restTemplate.exchange(url, HttpMethod.GET, entity, Boolean.class);
     }
 }
