@@ -1,8 +1,10 @@
 package com.hanghae.likeservice.service;
 
+import com.hanghae.likeservice.domain.constant.AlarmType;
 import com.hanghae.likeservice.domain.constant.LikeType;
 import com.hanghae.likeservice.domain.entity.Likes;
 import com.hanghae.likeservice.domain.repository.LikeRepository;
+import com.hanghae.likeservice.dto.request.AlarmRequest;
 import com.hanghae.likeservice.external.client.AlarmServiceClient;
 import com.hanghae.likeservice.external.client.FeedServiceClient;
 import com.hanghae.likeservice.external.client.UserServiceClient;
@@ -31,7 +33,7 @@ public class LikeService {
                 String userEmail = userServiceClient.getMyEmail(headers);
                 Optional<Long> fromUser = userServiceClient.getUserId(userEmail);
                 Optional<Long> toUser = feedServiceClient.getPostUserId(targetId);
-                likeToggle(userEmail, likeType, optionalLike, targetId, fromUser, toUser);
+                likeToggle(userEmail, likeType, optionalLike, targetId, fromUser, toUser, AlarmType.NEW_LIKE_ON_POST);
             }
         }
 
@@ -40,18 +42,18 @@ public class LikeService {
                 String userEmail = userServiceClient.getMyEmail(headers);
                 Optional<Long> fromUser = userServiceClient.getUserId(userEmail);
                 Optional<Long> toUser = feedServiceClient.getCommentUserId(targetId);
-                likeToggle(userEmail, likeType, optionalLike, targetId, fromUser, toUser);
+                likeToggle(userEmail, likeType, optionalLike, targetId, fromUser, toUser, AlarmType.NEW_LIKE_ON_COMMENT);
             }
         }
     }
 
-    private void likeToggle(String currentUserEmail, LikeType likeType, Optional<Likes> optionalLike, Long targetId, Optional<Long> fromUser, Optional<Long> toUser) {
+    private void likeToggle(String currentUserEmail, LikeType likeType, Optional<Likes> optionalLike, Long targetId, Optional<Long> fromUser, Optional<Long> toUser, AlarmType alarmType) {
         if (optionalLike.isPresent()) {
             Likes like = optionalLike.get();
             like.toggleDeleted();
             likeRepository.save(like);
             if (fromUser.isPresent() && toUser.isPresent()) {
-                alarmServiceClient.saveAlarm(toUser.get(), fromUser.get(), like.getId(), "NEW_" + likeType.name() + "_LIKE");
+                alarmServiceClient.saveAlarm(AlarmRequest.of(toUser.get(), fromUser.get(), targetId, alarmType));
             }
         }
 
